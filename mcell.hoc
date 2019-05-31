@@ -1,0 +1,171 @@
+// HOC file for running the Mauthner cell simulation
+// Saves the data to .dat files (tab-delimited ascii),
+// and to memory (square pulse responses can be retrieved
+// from Python as h.timeList and h.vrecList, and the ramp
+// response as h.time and h.vrec)
+//
+// HH formalism according to Buhry et al. 2013: "Global
+// parameter estimation of an Hodgkin-Huxley formalism 
+// using membrane voltage recordings: Application to
+// neuro-mimetic analog integrated circuits", Neurocomputing
+// 81 (2012) 75-85
+//
+// Parameters obtained by hand-fitting and dimension-by-
+// dimension local optimization, see an example in runfit.py
+//
+// Tuomo Maki-Marttunen, 2013-2017 (CC-BY 4.0)
+// 
+
+load_file("neurmorph.hoc")
+
+gl=0.008700000039526
+g1=20.999999990461987
+g2=15.289301400499159
+el=-83.400007934423883
+e1=55
+e2=-90
+Cm0=2.5
+Ra0=120
+glA=0.000300000004592
+RaA=120
+RaAH=120
+VoffaNa=-56.700000003615479
+VoffaK=-67.499999903453016
+VsloaNa=8.100000020602771
+VsloaK=9.570002271582146
+tauaNa=0.017999999846640
+tauaK=1.399997381068154
+VoffiNa=-64.000000481147609
+VsloiNa=6.060000000757244
+tauiNa=0.209992252219524
+
+t_sim = 15
+dt = 0.01
+axondiam = 54
+
+soma.cm=Cm0
+soma.Ra=Ra0
+soma.e_pas=el
+soma.g_pas=gl
+for i=0,29 {
+  dend[i].cm=Cm0
+  dend[i].Ra=Ra0
+  dend[i].e_pas=el
+  dend[i].g_pas=gl
+}
+axonhillock.cm=Cm0
+axonhillock.Ra=RaAH
+axonhillock.e_pas=el
+axonhillock.g_pas=glA
+axonhillock.g_I1=g1
+axonhillock.g_I2=g2
+axonhillock.E_I1=e1
+axonhillock.E_I2=e2
+axonhillock.Voffa_I1=VoffaNa
+axonhillock.Voffa_I2=VoffaK
+axonhillock.Vsloa_I1=VsloaNa
+axonhillock.Vsloa_I2=VsloaK
+axonhillock.taua_I1=tauaNa
+axonhillock.taua_I2=tauaK
+axonhillock.Voffi_I1=VoffiNa
+axonhillock.Vsloi_I1=VsloiNa
+axonhillock.taui_I1=tauiNa
+for i = 0,2 {
+  axon[i].cm=Cm0
+  axon[i].Ra=RaA
+  axon[i].diam=axondiam
+  axon[i].e_pas=el
+  axon[i].g_pas=glA
+}
+
+forall nseg=20
+
+objref stims[1]
+soma stims[0] = new IClamp(0.5)
+
+v_init = el
+tstop = t_sim
+
+cvode_active(1)
+cvode.atol(0.00005)
+objref time, vrec
+
+time = new Vector()
+time.record(&t)
+vrec = new Vector()
+vrec.record(&dend[1].v(0.5))
+
+double stimAmps[17]
+stimAmps[0] = 10
+stimAmps[1] = 30
+stimAmps[2] = 50
+stimAmps[3] = 70
+stimAmps[4] = 90
+stimAmps[5] = 190
+stimAmps[6] = 170
+stimAmps[7] = 150
+stimAmps[8] = 140
+stimAmps[9] = 130
+stimAmps[10] = 110
+stimAmps[11] = 100
+stimAmps[12] = 20
+stimAmps[13] = -20
+stimAmps[14] = -50
+stimAmps[15] = -70
+stimAmpR = 200
+
+
+objref myFile
+strdef fileName
+objref timeList, vrecList
+timeList = new List()
+vrecList = new List()
+
+for istim=0,15 {
+  stims[0].del = 5.0
+  stims[0].dur = 5.0
+  stims[0].amp = stimAmps[istim]
+  init()
+  run()
+
+  myFile = new File()
+  sprint(fileName,"run%i.dat",istim)
+  myFile.wopen(fileName,istim)
+  for i=0,time.size()-1 {
+    myFile.printf("%g %g\n", time.x(i), vrec.x(i))
+  }
+  myFile.close()
+  timeList.append(new Vector())
+  vrecList.append(new Vector())
+  for i=0,time.size()-1 {
+    timeList.o[timeList.count()-1].append(time.x[i])
+    vrecList.o[vrecList.count()-1].append(vrec.x[i])
+  }
+}
+
+stims[0].amp = 0
+objref stimsR[50]
+for i = 0,49 {
+  soma stimsR[i] = new IClamp(0.5)
+}
+for i = 0,49 {
+  stimsR[i].del = 52 + 20/50.0*i
+  stimsR[i].dur = 20/50.0
+  stimsR[i].amp = 200/50.0*i
+}
+t_sim = 72
+tstop = t_sim
+init()
+run()
+
+myFile = new File()
+myFile.wopen("runR.dat")
+for i=0,time.size()-1 {
+  myFile.printf("%g %g\n", time.x(i), vrec.x(i))
+}
+myFile.close()
+
+timeList.append(time)
+vrecList.append(vrec)
+
+

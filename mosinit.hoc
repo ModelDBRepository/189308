@@ -1,0 +1,4 @@
+load_file("nrngui.hoc")
+load_file("mcell.hoc")
+
+print "see README.html and data files run1.dat, ..., run16.dat and runR.dat"
